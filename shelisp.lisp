@@ -70,7 +70,7 @@
                              #-(or sbcl cmu) (error "Don't know how to run a program")
                              (format nil "~A" program)
                              options
-                             :input si :output so :error t)))
+                             :input si :output so :error *error-output*)))
                 (setq exit-code (#+sbcl sb-ext:process-exit-code
                                         #-sbcl (error "Don't know how to get a program's exit code")
                                  proc)))))))
