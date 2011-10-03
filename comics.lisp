@@ -339,6 +339,10 @@ to that strip is included. Otherwise only its title is shown."
              ,(comic-retriever comic))
      stream)))
 
+(defun dump ()
+  #+sbcl (sb-ext:save-lisp-and-die "comics" :executable t :toplevel #'(lambda () (main sb-ext:*posix-argv*)))
+  #-sbcl (error "Can't dump. Running instance is not SBCL"))
+
 (defun main (args)
   (when (probe-file *comic-archive-file*)
 	  (load-archive))
