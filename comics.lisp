@@ -106,19 +106,39 @@ Returns the attributes of the first match as multiple values."
     (list year month date)))
 
 (defstruct archived-strip
-  url date additional)
+  url date additional error)
+
+(defun archive-strip (comic strip)
+  (declare (type comic comic))
+  (let ((archive (assoc (comic-name comic) *comic-archive* :test #'string=))
+        (date (archived-strip-date strip)))
+    (cond ((null archive)
+           (push (cons (comic-name comic) (list strip)) *comic-archive*))
+          ((equalp (archived-strip-date (cadr archive)) date)
+           (setf (cadr archive) strip))
+          (t
+           (push strip (cdr archive))))))
+  
 
 (defun archive (comic url data)
   "Add the DATA (to the front of) the COMIC's archive."
   (declare (type string url))
   (declare (type comic comic))
-  (let ((archive (assoc (comic-name comic) *comic-archive* :test #'string=))
-        (strip (make-archived-strip :url url
-                                    :date (current-date)
-                                    :additional data)))
-    (if archive
-        (push strip (cdr archive))
-        (push (cons (comic-name comic) (list strip)) *comic-archive*))))
+  (archive-strip comic
+                 (make-archived-strip :url url
+                                      :date (current-date)
+                                      :additional data
+                                      :error nil)))
+
+(defun archive-error (comic c)
+  (declare (type condition c))
+  (let* ((message (format nil "~A" c))
+         (strip (make-archived-strip :url nil
+                                     :error message
+                                     :date (current-date)
+                                     :additional nil)))
+    (archive-strip comic strip)))
+
 
 (defun search-archive (comic)
   "Return the data saved for the comic"
@@ -206,25 +226,29 @@ In that case, two restarts are bound:
 If no restart is invoked, SAVE behaves as if ABORT had been invoked.
 
 Returns T if the comic has been saved, NIL otherwise."
-  (destructuring-bind (url &rest rest) (fetch comic)
-    (when (and (not (null url)) (savedp comic url))
-      (case
-          (restart-case (signal 'comic-saved :comic comic :url url)
-            (overwrite () :report "Overwrite the current comic" 'overwrite)
-            (abort     () :report "Don't save the comic" 'abort))
-        ((nil abort) (return-from save nil))
-        (overwrite nil)))
-    (let* ((dir (comic-dir comic))
-           (extension (url-extension url))
-           (file-name (comic-file-name extension))
-           (path (make-pathname :defaults dir :name file-name))
-           (stream (flexi-streams:flexi-stream-stream (http-request url :want-stream t))))
-      (ensure-directories-exist dir)
-      (with-open-file (out path :direction :output :if-does-not-exist :create
-                           :if-exists :overwrite :element-type 'unsigned-byte)
-        (copy-stream stream out)
-        (archive comic url rest))))
-  t)
+  (handler-bind
+      ((error (lambda (c)
+                (archive-error comic c)
+                (return-from save t))))
+      (destructuring-bind (url &rest rest) (fetch comic)
+        (when (and (not (null url)) (savedp comic url))
+          (case
+              (restart-case (signal 'comic-saved :comic comic :url url)
+                (overwrite () :report "Overwrite the current comic" 'overwrite)
+                (abort     () :report "Don't save the comic" 'abort))
+            ((nil abort) (return-from save nil))
+            (overwrite nil)))
+        (let* ((dir (comic-dir comic))
+               (extension (url-extension url))
+               (file-name (comic-file-name extension))
+               (path (make-pathname :defaults dir :name file-name))
+               (stream (flexi-streams:flexi-stream-stream (http-request url :want-stream t))))
+          (ensure-directories-exist dir)
+          (with-open-file (out path :direction :output :if-does-not-exist :create
+                               :if-exists :overwrite :element-type 'unsigned-byte)
+            (copy-stream stream out)
+            (archive comic url rest))))
+    t))
 
 ;;;_ Generate webpage
 (defun strip-link (comic strip date)
@@ -242,12 +266,15 @@ to that strip is included. Otherwise only its title is shown."
    (:h1 (:a :href (comic-url comic) (str (comic-name comic))))
    (:p
     (let ((strip (search-archive-time comic date)))
-           (if strip
-               (htm
-                (:img (:img :src (strip-link comic strip date)))
-                (dolist (add (archived-strip-additional strip))
-                  (htm (:p (str add)))))
-               (htm "No new comic found")))))))
+      (cond
+        ((not strip) (htm "No new comic found"))
+        ((archived-strip-url strip)
+         (htm
+          (:img (:img :src (strip-link comic strip date)))
+          (dolist (add (archived-strip-additional strip))
+            (htm (:p (str add))))))
+        (t
+         (htm (:b "Error " (str (archived-strip-error strip)))))))))))
 
 (defun webpage (stream &optional (date (current-date)))
   (with-html-output (stream)
