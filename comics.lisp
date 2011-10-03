@@ -83,7 +83,7 @@ the webpage."
 Returns the attributes as multiple values."
   (lambda (comic)
     (let* ((node (xpath:find-single-node (get-html (comic-url comic)) xpath)))
-      (assert node)
+      (unless node (error "Could not find strip with xpath \"~A\"." xpath))
       (mapcar (lambda (attr) (libxml2.tree:attribute-value node attr)) attributes))))
 
 (defun xpath-filter (xpath filter &rest attributes)
@@ -94,7 +94,8 @@ Returns the attributes of the first match as multiple values."
     (let* ((imgs (xpath:find-list (get-html (comic-url comic)) xpath))
            (img
             (find-if filter imgs)))
-      (assert img)
+      (unless img
+        (error "Could not find strip with xpath \"~A\" and filter." xpath))
       (mapcar (lambda (attr) (libxml2.tree:attribute-value img attr)) attributes))))
 
 ;;;_ The comic archive
@@ -274,7 +275,7 @@ to that strip is included. Otherwise only its title is shown."
           (dolist (add (archived-strip-additional strip))
             (htm (:p (str add))))))
         (t
-         (htm (:b "Error " (str (archived-strip-error strip)))))))))))
+         (htm (:b "Error: " (str (archived-strip-error strip)))))))))))
 
 (defun webpage (stream &optional (date (current-date)))
   (with-html-output (stream)
