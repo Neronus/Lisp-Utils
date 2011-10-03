@@ -49,7 +49,9 @@ RETRIEVER - function to call to find a strip.
 The RETRIEVER is should return the url of a strip (if any) as first value.
 Any other value is considered additional information and will be displayed on
 the webpage."
-  `(setq *comics* (append *comics* (list (make-comic :name ,name :url ,url :retriever ',retriever)))))
+  `(setq *comics*
+         (append (remove-if (lambda (c) (string= (comic-name c) ,name)) *comics*)
+                 (list (make-comic :name ,name :url ,url :retriever ',retriever)))))
 
 (defun find-comic (name)
   "Find an already existing comic"
