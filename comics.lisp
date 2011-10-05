@@ -46,9 +46,11 @@ NAME - Name of the cmoics. Used to find it via FIND-COMIC.
 URL - Url to link to and to scrape
 RETRIEVER - function to call to find a strip.
 
-The RETRIEVER is should return the url of a strip (if any) as first value.
-Any other value is considered additional information and will be displayed on
-the webpage."
+The RETRIEVER should return the url of a strip (if any) as first
+value.  Any other value is considered additional information and will
+be displayed on the webpage.
+
+For RETRIEVER examples look at XPATH and XPATH-FILTER."
   `(setq *comics*
          (append (remove-if (lambda (c) (string= (comic-name c) ,name)) *comics*)
                  (list (make-comic :name ,name :url ,url :retriever ',retriever)))))
@@ -147,7 +149,7 @@ The given strip replaces an existing one."
   
 
 (defun archive (comic url data)
-  "Add the DATA (to the front of) the COMIC's archive."
+  "Add the given comic (with url and additional data) to the archive."
   (declare (type string url))
   (declare (type comic comic))
   (archive-strip comic
@@ -157,6 +159,7 @@ The given strip replaces an existing one."
                                       :error nil)))
 
 (defun archive-error (comic c)
+  "Register the given condition as error for the given comic."
   (declare (type condition c))
   (let* ((message (format nil "~A" c))
          (strip (make-archived-strip :url nil
