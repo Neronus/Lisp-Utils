@@ -37,7 +37,7 @@
 (defpackage shelisp
   (:use cl)
   (:nicknames sl)
-  (:export lines-to-list script *shell* set-script-macros script
+  (:export lines-to-list script *shell* enable script
            mktemp))
 
 (in-package shelisp)
@@ -224,9 +224,11 @@ eval-when (:compile-toplevel :load-toplevel :execute)
     (list 'quote (cons 'mixed-template (read-template-list stream #\} #\#))))
 
 
-  (defun set-script-macros ()
-    (set-macro-character #\! #'simple-shell-escape-reader)
-    (set-macro-character #\[ #'embedded-shell-escape-reader)
+  (defun enable (&optional (copy-readtable t))
+    (when copy-readtable
+      (setf *readtable* (copy-readtable)))
+    (set-macro-character #\! #'simple-shell-escape-reader nil)
+    (set-macro-character #\[ #'embedded-shell-escape-reader nil)
     (set-dispatch-macro-character #\# #\[ #'template-escape-reader)
     (set-dispatch-macro-character #\# #\{ #'storable-template-escape-reader)))
 
@@ -240,10 +242,9 @@ eval-when (:compile-toplevel :load-toplevel :execute)
 
 ;; temporarily set reader macros
 (eval-when (:compile-toplevel :load-toplevel :execute)
-  (setf *readtable* (copy-readtable))
-  (set-script-macros))
+  (enable))
 
-(defun ls (&optional (pattern "") &key (options "") (dir "."))
+(defun ls (&optional (pattern "") (options "") (dir "."))
   "Return a list of strings representing the file names from the DIR directory
    matching [in the Unix glob way] the specified PATTERN string."
   (lines-to-list (script (format nil "cd ~A~%ls ~A ~A~%" dir options pattern))))
