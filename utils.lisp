@@ -1,6 +1,6 @@
 (defpackage utils
-  (:use cl cl-fad)
-  (:export ls path-/))
+  (:use cl)
+  (:export ls path-/ run-repl))
 
 (in-package utils)
 
@@ -13,8 +13,8 @@
         do (setf acc (merge-pathnames acc name))
         finally (return acc)))
 
-
 (defun ls (path)
+  (declare (inline ls))
   (let ((dir (sb-posix:opendir path)))
     (unwind-protect
          (loop
@@ -24,3 +24,8 @@
             :unless (or (string= name ".") (string= name ".."))
             :collect name)
       (sb-posix:closedir dir))))
+      
+(defun run-repl (argv)
+  (declare (ignore argv))
+  (sb-impl::toplevel-init))
+
