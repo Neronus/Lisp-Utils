@@ -36,22 +36,40 @@
     (or-raise [convert ?(format nil "~{'~A'~^ ~}" paths) +append ?pathname ])
     pathname))
 
+(defun random-imgs ()
+  "Randomly select an image from each directory specified by *resolutions*"
+  (let ((imgs (mapcar #'ls *resolutions*)))
+    (mapcar #%(path-/ %1 (random-elt %2)) *resolutions* imgs)))
+
+(defun set-bgs (imgs)
+  "Merge the images into one image and call set-bg.
+
+The images will be merged from left to right as they appear in the list."
+  (let ((merged (apply #'append-images imgs)))
+    (set-bg merged)
+    (delete-file merged)))
+
+(defun usage (name)
+  (concatenate 'string "Usage: " name " [interval]
+
+If interval is not given, then set one background image randomly.
+If interval is given, then update the image every <interval> seconds."))
+
 (defun main (args)
-  (pop args)
-  (let* ((*random-state* (make-random-state t))
-         (imgs
-          (mapcar #'ls *resolutions*)))
-    (labels ((random-imgs ()
-               (mapcar (lambda (imgs res) (path-/  res (random-elt imgs))) imgs *resolutions*))
-             (set-bgs ()
-               (let ((merged (apply #'append-images (random-imgs))))
-                 (set-bg merged)
-                 (delete-file merged))))
-      (if (null args)
-          (set-bgs)
-          (let ((interval (parse-integer (car args) :junk-allowed t)))
-            (when (null interval)
-              (format *error-output* "supplied argument ~s is not a number~%" (car args))
-              (sb-ext:quit :unix-status 1))
-            (loop do (set-bgs) do (sleep interval)))))))
-                
+  (let* ((name (pop args))
+         (*random-state* (make-random-state t)))
+    (if (null args)
+        (set-bgs (random-imgs))
+        (let ((interval (parse-integer (car args) :junk-allowed t)))
+          (cond
+            ((null interval)
+             (format *error-output* "Supplied argument ~s is not a number~%~%" (car args))
+             (princ (usage name) *error-output*) (terpri)
+             (sb-ext:quit :unix-status 1))
+            (t
+             ;;; In case of an error, record that error, sleep, try again
+             (loop
+                (handler-case
+                    (progn (set-bgs (random-imgs)) (sleep interval))
+                  (error (err)
+                    (princ err *error-output*) (terpri))))))))))
