@@ -29,15 +29,16 @@
 (in-package comics)
 
 ;;;_ Global variables (also used for configuration)
-(defparameter *comics* nil "List of comics")
 (defparameter *comic-base* #P"/home/christian/comics/")
 (defparameter *comic-config* #P "/home/christian/comics/comics.lisp")
-(defparameter *url-base* "file:///home/christian/comics")
+(defparameter *url-base* "file:///home/christian/comics/")
 (defparameter *comic-archive* nil)
 (defparameter *comic-archive-file* "/home/christian/comics/archive.lisp")
 
 ;;;_ Comic specification
 (defstruct comic url name retriever)
+
+(defparameter *comics* nil "List of comics")
 
 (defmacro comic (name url retriever)
   "Specify a new comic.
