@@ -175,7 +175,6 @@ The given strip replaces an existing one."
 
 (defun search-archive-time (comic date)
   "Search for a comic strip for the specified date."
-  (declare (optimize (debug 3)))
   (let ((strips (search-archive comic)))
     (when strips
       (find-if (lambda (strip) (equal (archived-strip-date strip) date)) strips))))
