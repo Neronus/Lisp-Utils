@@ -7,7 +7,6 @@
 ;;; * Quick default methods via xpath queries to get comics
 ;;; * Automatically store a comics on the disk (one per day)
 ;;; * Generate webpage from comics, only showing new ones (since day before)
-;;; Features missing:
 ;;; * web-navigation on comic archive
 
 ;;; Go to the end of the file for some example comic definitions
