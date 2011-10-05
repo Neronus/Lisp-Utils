@@ -1,5 +1,6 @@
 (defpackage randBG
   (:use cl utils)
+  (:import-from alexandria random-elt)
   (:export main))
 
 (in-package randBG)
@@ -15,14 +16,8 @@
 (defparameter *bg-dir* (merge-pathnames #P"backgrounds/" *home-dir*))
 
 (defparameter *resolutions*
-  (mapcar (lambda (res) (path-/ *bg-dir* res))
-          '("1680x1050")))
-
-(defun random-elt (list)
-  (unless (and (listp list) (not (null list))) (error "list is not a list"))
-  (let* ((length (length list))
-         (index (random length)))
-    (elt list index)))
+  (mapcar #%(path-/ *bg-dir* %1)
+          '("1440x900" "1280x1024")))
 
 (defmacro or-raise (script)
   "Execute the form script, which we expect to be of form (script ...) or friends. Signal an error if the return value is not 0."
