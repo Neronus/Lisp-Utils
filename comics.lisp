@@ -101,16 +101,41 @@ Returns the attributes of the first match as multiple values."
 ;;;_ The comic archive
 ;;; The archive is an index of comics. It stores the information we know about
 ;;; our comics.
-(defun current-date ()
-  (multiple-value-bind (second minute hour date month year dow daylight zone) (get-decoded-time)
+(defun universal-time->date (time)
+  "Turn a univiersal time integer (as for example returned by GET-UNIVERSAL-TIME) into a date. See DATE->UNIVERSAL-TIME"
+  (multiple-value-bind (second minute hour date month year dow daylight zone) (decode-universal-time time)
     (declare (ignore second minute hour dow daylight zone))
     (list year month date)))
+
+(defun date->universal-time (date)
+  "Turn a date into an universal time integer. See UNIVERSAL-TIME->DATE"
+  (encode-universal-time 0 0 0 (third date) (second date) (first date)))
+
+(defun current-date ()
+  "Return the current date."
+  (universal-time->date (get-universal-time)))
+
+(defun previous-day (date)
+  "Return the date before the given one."
+  (let* ((universal (date->universal-time date))
+         (yesterday (- universal (* 60 60 24))))
+    (universal-time->date yesterday)))
+
+(defun next-day (date)
+  "Return the date after the given one."
+  (let* ((universal (date->universal-time date))
+         (yesterday (+ universal (* 60 60 24))))
+    (universal-time->date yesterday)))
 
 (defstruct archived-strip
   url date additional error)
 
 (defun archive-strip (comic strip)
+  "Put the given strip into the comic archive.
+
+The given strip replaces an existing one."
   (declare (type comic comic))
+  (declare (type archived-strip strip))
   (let ((archive (assoc (comic-name comic) *comic-archive* :test #'string=))
         (date (archived-strip-date strip)))
     (cond ((null archive)
