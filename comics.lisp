@@ -305,15 +305,44 @@ to that strip is included. Otherwise only its title is shown."
         (t
          (htm (:b "Error: " (str (archived-strip-error strip)))))))))))
 
-(defun webpage (stream &optional (date (current-date)))
-  (with-html-output (stream)
-    (htm
-     (:html
-      (:head (:title "Strips for " (str date)))
-      (:body
-       (:h1 "Strips for " (str date))
-       (loop :for comic :in *comics*
-             :do (comic-paragraph stream comic date)))))))
+(defun index-name (date)
+  "Turn a date into a filename for a webpage."
+  (if (equalp date (current-date))
+      "index.html"
+      (apply #'format nil "index-~4,'0d-~2,'0d-~2,'0d.html" date)))
+
+(defun index-url (date)
+  "Turn a date into a URL for comic webpage.
+
+Influenced by *url-base*"
+  (concatenate 'string *url-base* (index-name date)))
+
+(defun index-file (date)
+  "Turn a date into a path for the comics webpage.
+
+Influence by *comic-base*"
+  (format nil "~a/~a" *comic-base* (index-name date)))
+
+(defun webpage (&optional filename (date (current-date)))
+  "Write the webpage for the given date to the given filename.
+
+If FILENAME is NIL, then it is constructed from DATE.
+If DATE is NIL, it is assumed to be the CURRENT-DATE."
+  (when (null filename)
+    (setq filename (index-file date)))
+  (with-open-file (stream filename :direction :output :if-does-not-exist :create :if-exists :overwrite)
+    (with-html-output (stream)
+      (htm
+       (:html
+        (:head (:title "Strips for " (str date)))
+        (:body
+         (:h1 "Strips for " (str date))
+         (:a :href (index-url (previous-day date)) (str "Previous"))
+         (unless (equalp date (current-date))
+           (htm (:a :href (index-url (next-day date)) (str "Next")))))
+         (loop :for comic :in *comics*
+            :do (comic-paragraph stream comic date))))))
+  #+sbcl (sb-posix:chmod filename #b110100100))
 
 ;;;_ Comic specifications
 
@@ -384,7 +413,7 @@ to that strip is included. Otherwise only its title is shown."
                 (format t "Saved ~a.~%" (comic-name comic))))
        (save-archive))
       ((string= command "generate")
-       (webpage *standard-output*))
+       (webpage (previous-day (current-date))))
       ((string= command "show")
        (let ((*print-readably* nil))
          (mapc (lambda (comic) (write-comic-definition comic *standard-output*)) *comics*))
