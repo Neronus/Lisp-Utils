@@ -4,8 +4,9 @@
 
 (in-package randBG)
 
-(eval-when (:compile-toplevel :load-toplevel :execute)
-  (sl:set-script-macros))
+(eval-when (:execute :compile-toplevel :load-toplevel)
+  (sl:enable)
+  (short-lambda:enable))
 
 (import '(cl-fad::pathname-as-directory cl-fad::list-directory))
 
