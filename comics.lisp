@@ -277,7 +277,8 @@ Returns T if the comic has been saved, NIL otherwise."
           (with-open-file (out path :direction :output :if-does-not-exist :create
                                :if-exists :overwrite :element-type 'unsigned-byte)
             (copy-stream stream out)
-            (archive comic url rest))))
+            (archive comic url rest))
+          #+sbcl (sb-posix:chmod path #b110100100)))
     t))
 
 ;;;_ Generate webpage
