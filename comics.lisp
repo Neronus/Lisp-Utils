@@ -182,7 +182,7 @@ The given strip replaces an existing one."
 (defun save-archive ()
   "Save the archive in *COMIC-ARCHIVE-FILE*"
   (with-open-file (stream *comic-archive-file*
-                          :direction :output :if-exists :overwrite :if-does-not-exist :create)
+                          :direction :output :if-exists :supersede :if-does-not-exist :create)
     (let ((*print-readably* t))
       (print *comic-archive* stream))))
 
@@ -273,7 +273,7 @@ Returns T if the comic has been saved, NIL otherwise."
                (stream (flexi-streams:flexi-stream-stream (http-request url :want-stream t))))
           (ensure-directories-exist dir)
           (with-open-file (out path :direction :output :if-does-not-exist :create
-                               :if-exists :overwrite :element-type 'unsigned-byte)
+                               :if-exists :supersede :element-type 'unsigned-byte)
             (copy-stream stream out)
             (archive comic url rest))
           #+sbcl (sb-posix:chmod path #b110100100)))
@@ -330,8 +330,8 @@ If FILENAME is NIL, then it is constructed from DATE.
 If DATE is NIL, it is assumed to be the CURRENT-DATE."
   (when (null filename)
     (setq filename (index-file date)))
-  (with-open-file (stream filename :direction :output :if-does-not-exist :create :if-exists :overwrite)
-    (with-html-output (stream)
+  (with-open-file (stream filename :direction :output :if-does-not-exist :create :if-exists :supersede)
+    (with-html-output (stream stream :indent t)
       (htm
        (:html
         (:head (:title "Strips for " (str date)))
@@ -384,9 +384,9 @@ If DATE is NIL, it is assumed to be the CURRENT-DATE."
 (comic "Penny Arcade" "http://penny-arcade.com/comic"
        (xpath "//div[@class='post comic']/img" "src"))
 
-;; No dilbert. What the fuck is UTF-8lias???
-;;(comic "Dilbert" "http://www.dilbert.com"
-;;       (xpath "//div[@class='STR_Image/a/img" "src"))
+;;; No dilbert. What the fuck is UTF-8lias???
+;;; (comic "Dilbert" "http://www.dilbert.com"
+;;;       (xpath "//div[@class='STR_Image/a/img" "src"))
 
 ;;;_ Main
 (defun write-comic-definition (comic stream)
