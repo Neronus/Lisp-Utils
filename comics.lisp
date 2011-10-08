@@ -357,7 +357,7 @@ If DATE is NIL, it is assumed to be the CURRENT-DATE."
                      (lambda (node) (search "/comics/" (attribute-value node "src"))) "src"))
 
 (comic "Abstruse Goose" "http://abstrusegoose.com/"
-       (xpath "//div[@class='storycontent']/p/img"  "src" "title"))
+       (xpath "//div[@class='storycontent']//img" "src" "title"))
 
 (comic "Sinfest" "http://www.sinfest.net"
        (xpath-filter "//img"
