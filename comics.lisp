@@ -1,15 +1,6 @@
 ;;; -*- mode: Lisp; mode: Allout -*-
 
-;;; Author: Christian von Essen <christian@mvonessen.de>
-;;; Script to collect comics and generate webpages from them
-;;; Version: 0.1
-;;; Features:
-;;; * Quick default methods via xpath queries to get comics
-;;; * Automatically store a comics on the disk (one per day)
-;;; * Generate webpage from comics, only showing new ones (since day before)
-;;; * web-navigation on comic archive
 
-;;; Go to the end of the file for some example comic definitions
 
 ;;;_ Quickloads
 (ql:quickload "drakma")
@@ -23,26 +14,59 @@
 ;;;_ Package declaration
 (defpackage comics
   (:use cl drakma xpath cl-ppcre libxml2.tree cl-fad cl-who lisp-unit)
-  (:export main))
+  (:export main comic find-comic xpath xpath-filter fetch webpage)
+  (:documentation
+   "Automatically download and archive comics.
+
+Author: Christian von Essen <christian@mvonessen.de>
+Version: 0.1
+Features:
+* Quick default methods via xpath queries to get comics
+* Automatically store a comics on the disk (one per day)
+* Generate webpage from comics, only showing new ones (since day before)
+* web-navigation on comic archive
+
+Comics are defined via COMIC.
+See the end of the file for some examples.
+"))
 
 (in-package comics)
 
+(declaim (optimize (debug 3)))
+
 ;;;_ Global variables (also used for configuration)
-(defparameter *comic-base* #P"/home/christian/comics/")
-(defparameter *comic-config* #P "/home/christian/comics/comics.lisp")
-(defparameter *url-base* "file:///home/christian/comics/")
-(defparameter *comic-archive* nil)
-(defparameter *comic-archive-file* "/home/christian/comics/archive.lisp")
+(defparameter *comic-base* #P"/home/christian/comics/"
+              "Comics are stored under this directory")
+(defparameter *url-base* "file:///home/christian/comics/"
+  "Links to comics are generated using this URL")
+(defparameter *comic-archive* nil
+  "Comic archive. Access via ARCHIVE and SEARCH-ARCHIVE(-TIME), SAVE-ARCHIVE and LOAD-ARCHIVE")
+(defparameter *comic-archive-file* "/home/christian/comics/archive.lisp"
+  "Save and load comic archive to and from here (via SAVE-ARCHIVE and LOAD-ARCHIVE)")
 
 ;;;_ Comic specification
-(defstruct comic url name retriever)
+(defstruct comic
+  "Definition of a comic, i.e., a website that offers comic strips.
 
-(defparameter *comics* nil "List of comics")
+See macro COMIC for how to define a comic.
+
+NAME - Name of the comic. Used to find it via FIND-COMIC.
+URL - Url to link to and to scrape
+RETRIEVER - function to call to find a strip.
+"
+  (url "" :type string)
+  (name "" :type string)
+  (retriever nil :type list))
+
+(defparameter *comics* nil
+  "List of comics.
+See macro COMIC to add a comic and #'FIND-COMIC to retrieve
+a comic from this list.")
 
 (defmacro comic (name url retriever)
   "Specify a new comic.
 
-NAME - Name of the cmoics. Used to find it via FIND-COMIC.
+NAME - Name of the comic. Used to find it via FIND-COMIC.
 URL - Url to link to and to scrape
 RETRIEVER - function to call to find a strip.
 
@@ -50,7 +74,9 @@ The RETRIEVER should return the url of a strip (if any) as first
 value.  Any other value is considered additional information and will
 be displayed on the webpage.
 
-For RETRIEVER examples look at XPATH and XPATH-FILTER."
+For RETRIEVER examples look at XPATH and XPATH-FILTER.
+
+To download a defined comic see #'FETCH."
   `(setq *comics*
          (append (remove-if (lambda (c) (string= (comic-name c) ,name)) *comics*)
                  (list (make-comic :name ,name :url ,url :retriever ',retriever)))))
@@ -103,14 +129,19 @@ Returns the attributes of the first match as multiple values."
 ;;;_ The comic archive
 ;;; The archive is an index of comics. It stores the information we know about
 ;;; our comics.
+
+(deftype date () 'list)
+
 (defun universal-time->date (time)
-  "Turn a univiersal time integer (as for example returned by GET-UNIVERSAL-TIME) into a date. See DATE->UNIVERSAL-TIME"
+    "Turn a univiersal time integer (as for example returned by GET-UNIVERSAL-TIME) into a date. See DATE->UNIVERSAL-TIME"
+    (declare (type unsigned-byte time))
   (multiple-value-bind (second minute hour date month year dow daylight zone) (decode-universal-time time)
     (declare (ignore second minute hour dow daylight zone))
-    (list year month date)))
+    (the date (list year month date))))
 
 (defun date->universal-time (date)
   "Turn a date into an universal time integer. See UNIVERSAL-TIME->DATE"
+  (declare (type list date))
   (encode-universal-time 0 0 0 (third date) (second date) (first date)))
 
 (defun current-date ()
@@ -130,12 +161,24 @@ Returns the attributes of the first match as multiple values."
     (universal-time->date yesterday)))
 
 (defstruct archived-strip
-  url date additional error)
+  "A strip is a downloaded image from a COMIC.
+
+URL - url of the image
+DATE - day the image was downloaded
+ADDITIONAL - Any kind of additional information, e.g., alternative text for the image
+ERROR - NIL or an error string if the image couldn't be downloaded.
+
+See #'FETCH to download a comic and macro COMIC to define a comic."
+  (url "" :type (or null string))
+  (date (current-date) :type date)
+  (additional nil :type t)
+  (error nil :type (or null string)))
 
 (defun archive-strip (comic strip)
   "Put the given strip into the comic archive.
 
-The given strip replaces an existing one."
+The given strip replaces an existing one if there is already
+one for the same date."
   (declare (type comic comic))
   (declare (type archived-strip strip))
   (let ((archive (assoc (comic-name comic) *comic-archive* :test #'string=))
@@ -147,7 +190,6 @@ The given strip replaces an existing one."
           (t
            (push strip (cdr archive))))))
   
-
 (defun archive (comic url data)
   "Add the given comic (with url and additional data) to the archive."
   (declare (type string url))
@@ -249,7 +291,7 @@ If the url has no extension, NIL is returned. Otherwise it's extension is return
 If the comic already has been saved according to SAVEDP,
 then a condition of type COMIC-SAVED is signalled.
 In that case, two restarts are bound:
-- OVERWRITE: save comic anywab
+- OVERWRITE: save comic anyway, overwriting the existing one
 - ABORT: Don't save the comic
 If no restart is invoked, SAVE behaves as if ABORT had been invoked.
 
@@ -281,6 +323,7 @@ Returns T if the comic has been saved, NIL otherwise."
 
 ;;;_ Generate webpage
 (defun strip-link (comic strip date)
+  "Generate a link to the given strip"
   (concatenate 'string *url-base* "/"
                (comic-name comic) "/"
                (comic-file-name (url-extension (archived-strip-url strip)) date)))
@@ -299,7 +342,7 @@ to that strip is included. Otherwise only its title is shown."
         ((not strip) (htm "No new comic found"))
         ((archived-strip-url strip)
          (htm
-          (:img (:img :src (strip-link comic strip date)))
+          (:img :src (strip-link comic strip date))
           (dolist (add (archived-strip-additional strip))
             (htm (:p (str add))))))
         (t
@@ -324,14 +367,13 @@ Influence by *comic-base*"
   (format nil "~a/~a" *comic-base* (index-name date)))
 
 (defun webpage (&optional filename (date (current-date)))
-  "Write the webpage for the given date to the given filename.
+  "Write the webpage for the given date to the given FILENAME.
 
-If FILENAME is NIL, then it is constructed from DATE.
-If DATE is NIL, it is assumed to be the CURRENT-DATE."
+If FILENAME is NIL, then it is constructed from DATE."
   (when (null filename)
     (setq filename (index-file date)))
   (with-open-file (stream filename :direction :output :if-does-not-exist :create :if-exists :supersede)
-    (with-html-output (stream stream :indent t)
+    (with-html-output (stream)
       (htm
        (:html
         (:head (:title "Strips for " (str date)))
@@ -345,7 +387,6 @@ If DATE is NIL, it is assumed to be the CURRENT-DATE."
   #+sbcl (sb-posix:chmod filename #b110100100))
 
 ;;;_ Comic specifications
-
 (comic "XKCD" "http://xkcd.org"
        (xpath "//img[@title]" "src" "title"))
 
@@ -398,10 +439,17 @@ If DATE is NIL, it is assumed to be the CURRENT-DATE."
      stream)))
 
 (defun dump ()
+  "Dump an executable that calls #'MAIN when it starts."
   #+sbcl (sb-ext:save-lisp-and-die "comics" :executable t :toplevel #'(lambda () (main sb-ext:*posix-argv*)))
   #-sbcl (error "Can't dump. Running instance is not SBCL"))
 
 (defun main (args)
+  "Main function.
+
+Args is expected to be a list of at least two arguments. The first argument
+is ignored. The second argument has to be one of the following strings:
+- 'save': Download comics for today using #'FETCH
+- 'generate': Generate website for today using #'WEBPAGE"
   (when (probe-file *comic-archive-file*)
 	  (load-archive))
   (let ((command (second args)))
