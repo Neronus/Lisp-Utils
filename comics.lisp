@@ -425,6 +425,12 @@ If FILENAME is NIL, then it is constructed from DATE."
 (comic "Penny Arcade" "http://penny-arcade.com/comic"
        (xpath "//div[@class='post comic']/img" "src"))
 
+(comic "Cyanide and Happiness" "http://www.explosm.net/comics/"
+               (xpath-filter "//div[@id='maincontent']//img"
+                             (lambda (node)
+                               (search "/Comics/" (attribute-value node "src")))
+                             "src"))
+
 ;;; No dilbert. What the fuck is UTF-8lias???
 ;;; (comic "Dilbert" "http://www.dilbert.com"
 ;;;       (xpath "//div[@class='STR_Image/a/img" "src"))
