@@ -35,7 +35,7 @@
 ;;;;            script command
 
 (defpackage shelisp
-  (:use cl trivial-shell)
+  (:use cl trivial-shell lisp-unit)
   (:nicknames sl)
   (:export lines-to-list script *shell* enable script))
 
