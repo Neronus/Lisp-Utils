@@ -90,7 +90,11 @@ The delimiter is
 Interpolation starts with ?, and the next form (i.e., lisp form)
 is interpolated. If EVAL-AT-READ is not NIL, then the form will
 be evaluated and converted into a string immediately.
-Otherwise the form will be return as is."
+Otherwise the form will be return as is.
+
+Returns a list. In this list, normal strings and interpolations alternate.
+For example the string \"asd foo ?(+ 2 2) bar ?(+ 3 3)\"
+will be read as (\"asd foo \" (+ 2 2) \" bar \" (+ 3 3))."
   (flet ((get-buffer ()
            (make-array 128 :element-type 'character :adjustable t :fill-pointer 0))
          (increase-buffer (buffer)
