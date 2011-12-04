@@ -44,16 +44,6 @@
 (defvar *shelisp-temp-directory* "/tmp/"
   "Directory where all temporary files are created.")
 
-;; the following two defvar's are just reminders for what to do.
-
-(defvar *expr-escape-chars* "?"
-  "Not yet used definition of the string that introduces expressions
-   to be evaluated and returned in scripts.")
-
-(defvar *expr-escape-escape-chars* "\\?"
-  "Not yet used definition of the string that prevents the
-   introduction of expressions to be evaluated and returned in scripts.")
-
 (defparameter *shell* "/bin/sh"
   "Program to use to execute shell commands.")
 
