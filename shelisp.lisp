@@ -117,7 +117,11 @@ will be read as (\"asd foo \" (+ 2 2) \" bar \" (+ 3 3))."
                   (progn
                     (when end-char2
                       (vector-pop buffer))
-                    (return-from read-script-list (nreverse (cons buffer mixl))))))
+                    (return-from read-interpolated-string
+                      (nreverse
+                       (if (zerop (length buffer))
+                           mixl
+                           (cons buffer mixl)))))))
              ((eql char #\?)
               (if was-escaped
                   (vector-push char buffer)
