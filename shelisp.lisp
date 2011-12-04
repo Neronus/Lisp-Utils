@@ -26,13 +26,14 @@
 ;;;; v2.1:    august 14, 2007
 ;;;;          sbcl compatibility
 ;;;;
-;;;;          Made lines-to-list significantly faster (use loop instead of recursion
-;;;;          Let mixed-script use mixed-template
-;;;;          Converted several calls of the form (script (format ...))
-;;;;            to the reader macro form
+;;;; v2.2:    December 4, 2011
+;;;;          Made lines-to-list significantly faster (use loop instead of recursion)
 ;;;;          Removed several occurences of the dangling paranthesis
 ;;;;          Created a special variable *shell* that gets executed in the
 ;;;;            script command
+;;;;          Use trivial-shell
+;;;;          Unify all read functions into one
+;;;;          Remove all bindings to shell programs
 
 (defpackage shelisp
   (:use cl trivial-shell lisp-unit)
