@@ -34,6 +34,13 @@
 ;;;;          Use trivial-shell
 ;;;;          Unify all read functions into one
 ;;;;          Remove all bindings to shell programs
+;;;;
+;;;;  Known problems:
+;;;;    * #[ My standard output: ?*standard-output*]#
+;;;;      The reader considers the "]" to be part of the string it has to read.
+;;;;      We cannot simply write
+;;;;      #[ My standard output: ?*standard-output* ]#
+;;;;      instead because then we will have a space in the end of the returned string.
 
 (defpackage shelisp
   (:use cl trivial-shell lisp-unit)
