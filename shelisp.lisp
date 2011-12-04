@@ -35,10 +35,9 @@
 ;;;;            script command
 
 (defpackage shelisp
-  (:use cl)
+  (:use cl trivial-shell)
   (:nicknames sl)
-  (:export lines-to-list script *shell* enable script
-           mktemp))
+  (:export lines-to-list script *shell* enable script))
 
 (in-package shelisp)
 
@@ -58,23 +57,10 @@
 (defparameter *shell* "/bin/sh"
   "Program to use to execute shell commands.")
 
-(defun script (str &key (program *shell*) (options ()))
+(defun script (str &key (program *shell*))
   "Execute the STR string as a script of the program, with the eventual options,
    and return the standard-output of the command as a string."
-  (let* ((exit-code)
-         (out
-          (with-output-to-string (so)
-            (with-input-from-string (si str)
-              (let ((proc
-                     (#+sbcl sb-ext:run-program #+cmu extensions:run-program
-                             #-(or sbcl cmu) (error "Don't know how to run a program")
-                             (format nil "~A" program)
-                             options
-                             :input si :output so :error *error-output*)))
-                (setq exit-code (#+sbcl sb-ext:process-exit-code
-                                        #-sbcl (error "Don't know how to get a program's exit code")
-                                 proc)))))))
-    (values out exit-code)))
+  (shell-command program :input str))
 
 (defun mixed-template (&rest strlist)
   "Execute the STR string as a script of the program, with the eventual options,
