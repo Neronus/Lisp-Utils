@@ -71,96 +71,100 @@
    on line of TEXT. This is suitable to postprocessing the standard output
    of many Unix commands (such as find or df) that return one result
    per line."
-  (loop with from-ptr = 0
-        for to-ptr from 0 below (length text)
-        when (char= (elt text to-ptr) #\newline)
-        collect
-          (prog1
-              (subseq text from-ptr to-ptr)
-            (setf from-ptr (1+ to-ptr)))))
+  (loop
+     :with from-ptr = 0
+     :for to-ptr :from 0 :below (length text)
+     :when (char= (elt text to-ptr) #\newline)
+     :collect
+     (prog1
+         (subseq text from-ptr to-ptr)
+       (setf from-ptr (1+ to-ptr)))))
 
-(defun read-script-list (str end-char)
-  "This is the 'delayed' read macro, that provides an
-   expression that will be evaluated at eval time."
-  (do ((bu (make-string 100000 :initial-element #\Space))
-                                        ; bu should be smaller and growing
-       (bul 0)
-       (mixl nil))
-      (nil)
-    (setf (elt bu bul) (read-char str))
-    (cond
-      ((eql (elt bu bul) end-char)
-       (if (or (eql bul 0) (not (eql (elt bu (1- bul)) #\\)))
-           (progn
-             (setf mixl (cons (subseq bu 0 bul) mixl))
-             (return-from read-script-list (reverse mixl)))
-           (setf (elt bu (1- bul)) end-char)))
-      ((eql (elt bu bul) #\?)
-       (if (or (eql bul 0) (not (eql (elt bu (1- bul)) #\\)))
-           (let ((form  (read-preserving-whitespace str)))
-             (setf mixl (cons (subseq bu 0 bul) mixl))
-             (setf mixl (cons form mixl))
-             (setf bul 0))
-           (setf (elt bu (1- bul)) #\?)))
-      (t (incf bul)))))
+(defun read-script-list (str end-char1 &optional end-char2 eval-at-read)
+  "Read from a stream until a delimiter is found and interpolate.
 
-(defun read-template-list (str end-char-1 end-char-2)
-  " This is the 'delayed' read macro, that provides an
-    expression that will be evaluated at eval time.
-    problem: must ungetc the space after the ? expression! "
-  (do ((bu (make-string 100000 :initial-element #\Space))
-       (bul 0)
-       (mixl nil))
-      (nil)
-    (setf (elt bu bul) (read-char str))
-    (cond
-      ((and (> bul 2) (eql (elt bu bul) end-char-2) (eql (elt bu (1- bul)) end-char-1))
-       (setf mixl (cons (subseq bu 0 (1- bul)) mixl))
-       (return-from read-template-list (reverse mixl)))
-      ((eql (elt bu bul) #\?)
-       (if (or (eql bul 0) (not (eql (elt bu (1- bul)) #\\)))
-           (let ((form  (read-preserving-whitespace str)))
-             (setf mixl (cons (subseq bu 0 bul) mixl))
-             (setf mixl (cons form mixl))
-             (setf bul 0))
-           (setf (elt bu (1- bul)) #\?)))
-      (t (incf bul)))))
+The delimiter is
+ - the character END-CHAR1 if END-CHAR2 is nil
+ - the sequence END-CHAR2 END-CHAR1 if END-CHAR2 is not nil.
 
-(defun read-script-line (str end-char)
-  "This is the 'direct' read macro, that executes the embedded
-   expressions at read time."
-  (do ((bu (make-string 1000 :initial-element #\Space))
-       (bul 0))
-      (nil)
-    (setf (elt bu bul) (read-char str))
-    (cond
-      ((eql (elt bu bul) end-char)
-       (if (or (eql bul 0) (not (eql (elt bu (1- bul)) #\\)))
-           (return-from read-script-line (subseq bu 0 bul))
-           (setf (elt bu (1- bul)) end-char)))
-      ((eql (elt bu bul) #\?)
-       (if (or (eql bul 0) (not (eql (elt bu (1- bul)) #\\)))
-           (let ((form (format nil "~A" (eval (read-preserving-whitespace str)))))
-             (replace bu form :start1 bul)
-             (incf bul (length form)))
-           (setf (elt bu (1- bul)) #\?)))
-      (t (incf bul)))))
+Interpolation starts with ?, and the next form (i.e., lisp form)
+is interpolated. If EVAL-AT-READ is not NIL, then the form will
+be evaluated and converted into a string immediately.
+Otherwise the form will be return as is."
+  (flet ((get-buffer ()
+           (make-array 128 :element-type 'character :adjustable t :fill-pointer 0))
+         (increase-buffer (buffer)
+           (adjust-array buffer (* 2 (length buffer))))
+         (buffer-full-p (buffer)
+           (= (array-dimension buffer 0) (length buffer))))
+    (loop
+       :with buffer = (get-buffer)
+       :for before-last-char = nil :then last-char
+       :for last-char = nil :then char
+       :for was-escaped = (and last-char (char= last-char #\\))
+       :for before-was-escaped = (and before-last-char (char= before-last-char #\\))
+       :for char = (read-char str)
+       :with mixl = nil
+       :do (cond
+             ((and (eql char end-char1) (or (null end-char2) (eql last-char end-char2)))
+              (if (or (and (null end-char2) was-escaped)
+                      (and end-char2 before-was-escaped))
+                  (vector-push char buffer)
+                  (progn
+                    (when end-char2
+                      (vector-pop buffer))
+                    (return-from read-script-list (nreverse (cons buffer mixl))))))
+             ((eql char #\?)
+              (if was-escaped
+                  (vector-push char buffer)
+                  (let ((form (read-preserving-whitespace str)))
+                    (push buffer mixl)
+                    (push (if eval-at-read
+                              (format nil "~A" (eval form))
+                              form) mixl)
+                    (setf buffer (get-buffer)))))
+             ((eql char #\\)
+              (when was-escaped
+                (vector-push char buffer)))
+             (t
+              (vector-push char buffer)))
+       :when (buffer-full-p buffer)
+       :do   (increase-buffer buffer))))
+
+(define-test read-script-list
+  (assert-equal
+   '("asd foo bar") (read-script-list (make-string-input-stream "asd foo bar]") #\]))
+  (assert-equal
+   '("asd foo bar ]") (read-script-list (make-string-input-stream "asd foo bar \\]]") #\]))
+  (assert-equal
+   '("asd foo bar " (+ 2 2) " ") (read-script-list (make-string-input-stream "asd foo bar ?(+ 2 2) ]") #\]))
+  (assert-equal
+   '("asd foo bar " "4" " ") (read-script-list (make-string-input-stream "asd foo bar ?(+ 2 2) ]") #\] nil t))
+  (assert-equal
+   '("asd foo") (read-script-list (make-string-input-stream "asd foo]#") #\# #\]))
+  (assert-equal
+   '("asd foo]#") (read-script-list (make-string-input-stream "asd foo\\]#]#") #\# #\]))
+  (assert-equal
+   '("asd foo]#") (read-script-list (make-string-input-stream "asd foo]\\#]#") #\# #\]))
+  (assert-equal
+   '("asd ?(+ 2 2)") (read-script-list (make-string-input-stream "asd \\?(+ 2 2)]") #\]))
+  (assert-equal
+   '("asd#") (read-script-list (make-string-input-stream "asd\\#]") #\])))
 
 (defun enter-shell-mode (stream)
   "Read and execute successive shell commands, with eventual
    lisp expressions embedded. Expressions are evaluated at
    read time, as soon as a line is delivered. Implements the !! macro."
-
   (do () (nil)
     (princ "$ " *standard-output*)
-    (let ((ll (read-script-line stream #\Newline)))
+    (let ((ll (apply #'concatenate 'string (read-script-list stream #\Newline nil t))))
       (when (and (> (length ll) 1) (string= (subseq ll 0 2) "!!"))
         (return-from enter-shell-mode))
       (princ (script ll)))))
 
 (defun simple-shell-escape-reader (stream char)
   (declare (ignore char))
-  (let ((ll (read-script-line stream #\Newline)))
+  (let ((ll (apply #'concatenate 'string (read-script-list stream #\Newline nil t))))
     (when (and (> (length ll) 0) (string= (subseq ll 0 1) "!"))
       (enter-shell-mode stream)
       (return-from simple-shell-escape-reader))
@@ -173,12 +177,11 @@
 
 (defun template-escape-reader (stream char1 char2)
   (declare (ignore char1 char2))
-  (cons 'mixed-template (read-template-list stream #\] #\#)))
+  (cons 'mixed-template (read-script-list stream #\# #\])))
 
 (defun storable-template-escape-reader (stream char1 char2)
   (declare (ignore char1 char2))
-  (list 'quote (cons 'mixed-template (read-template-list stream #\} #\#))))
-
+  (list 'quote (cons 'mixed-template (read-script-list stream #\# #\}))))
 
 (defun enable (&optional (copy-readtable t))
   (when copy-readtable
