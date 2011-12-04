@@ -80,7 +80,7 @@
          (subseq text from-ptr to-ptr)
        (setf from-ptr (1+ to-ptr)))))
 
-(defun read-script-list (str end-char1 &optional end-char2 eval-at-read)
+(defun read-interpolated-string (str end-char1 &optional end-char2 eval-at-read)
   "Read from a stream until a delimiter is found and interpolate.
 
 The delimiter is
@@ -131,25 +131,28 @@ Otherwise the form will be return as is."
        :when (buffer-full-p buffer)
        :do   (increase-buffer buffer))))
 
-(define-test read-script-list
+(define-test read-interpolated-string
   (assert-equal
-   '("asd foo bar") (read-script-list (make-string-input-stream "asd foo bar]") #\]))
+   '("asd foo bar") (read-interpolated-string (make-string-input-stream "asd foo bar]") #\]))
   (assert-equal
-   '("asd foo bar ]") (read-script-list (make-string-input-stream "asd foo bar \\]]") #\]))
+   '("asd foo bar ]") (read-interpolated-string (make-string-input-stream "asd foo bar \\]]") #\]))
   (assert-equal
-   '("asd foo bar " (+ 2 2) " ") (read-script-list (make-string-input-stream "asd foo bar ?(+ 2 2) ]") #\]))
+   '("asd foo bar " (+ 2 2) " ") (read-interpolated-string (make-string-input-stream "asd foo bar ?(+ 2 2) ]") #\]))
   (assert-equal
-   '("asd foo bar " "4" " ") (read-script-list (make-string-input-stream "asd foo bar ?(+ 2 2) ]") #\] nil t))
+   '("asd foo bar " "4" " ") (read-interpolated-string (make-string-input-stream "asd foo bar ?(+ 2 2) ]") #\] nil t))
   (assert-equal
-   '("asd foo") (read-script-list (make-string-input-stream "asd foo]#") #\# #\]))
+   '("asd foo") (read-interpolated-string (make-string-input-stream "asd foo]#") #\# #\]))
   (assert-equal
-   '("asd foo]#") (read-script-list (make-string-input-stream "asd foo\\]#]#") #\# #\]))
+   '("asd foo]#") (read-interpolated-string (make-string-input-stream "asd foo\\]#]#") #\# #\]))
   (assert-equal
-   '("asd foo]#") (read-script-list (make-string-input-stream "asd foo]\\#]#") #\# #\]))
+   '("asd foo]#") (read-interpolated-string (make-string-input-stream "asd foo]\\#]#") #\# #\]))
   (assert-equal
-   '("asd ?(+ 2 2)") (read-script-list (make-string-input-stream "asd \\?(+ 2 2)]") #\]))
+   '("asd ?(+ 2 2)") (read-interpolated-string (make-string-input-stream "asd \\?(+ 2 2)]") #\]))
   (assert-equal
-   '("asd#") (read-script-list (make-string-input-stream "asd\\#]") #\])))
+   '("asd#") (read-interpolated-string (make-string-input-stream "asd\\#]") #\]))
+  (assert-equal
+   '("asd foo " (+ 2 2) " bar " (+ 3 3))
+   (read-interpolated-string (make-string-input-stream "asd foo ?(+ 2 2) bar ?(+ 3 3)]") #\])))
 
 (defun enter-shell-mode (stream)
   "Read and execute successive shell commands, with eventual
@@ -157,14 +160,14 @@ Otherwise the form will be return as is."
    read time, as soon as a line is delivered. Implements the !! macro."
   (do () (nil)
     (princ "$ " *standard-output*)
-    (let ((ll (apply #'concatenate 'string (read-script-list stream #\Newline nil t))))
+    (let ((ll (apply #'concatenate 'string (read-interpolated-string stream #\Newline nil t))))
       (when (and (> (length ll) 1) (string= (subseq ll 0 2) "!!"))
         (return-from enter-shell-mode))
       (princ (script ll)))))
 
 (defun simple-shell-escape-reader (stream char)
   (declare (ignore char))
-  (let ((ll (apply #'concatenate 'string (read-script-list stream #\Newline nil t))))
+  (let ((ll (apply #'concatenate 'string (read-interpolated-string stream #\Newline nil t))))
     (when (and (> (length ll) 0) (string= (subseq ll 0 1) "!"))
       (enter-shell-mode stream)
       (return-from simple-shell-escape-reader))
@@ -173,15 +176,15 @@ Otherwise the form will be return as is."
 
 (defun embedded-shell-escape-reader (stream char)
   (declare (ignore char))
-  (cons 'mixed-script (read-script-list stream #\] )))
+  (cons 'mixed-script (read-interpolated-string stream #\] )))
 
 (defun template-escape-reader (stream char1 char2)
   (declare (ignore char1 char2))
-  (cons 'mixed-template (read-script-list stream #\# #\])))
+  (cons 'mixed-template (read-interpolated-string stream #\# #\])))
 
 (defun storable-template-escape-reader (stream char1 char2)
   (declare (ignore char1 char2))
-  (list 'quote (cons 'mixed-template (read-script-list stream #\# #\}))))
+  (list 'quote (cons 'mixed-template (read-interpolated-string stream #\# #\}))))
 
 (defun enable (&optional (copy-readtable t))
   (when copy-readtable
