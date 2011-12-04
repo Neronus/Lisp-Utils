@@ -32,7 +32,7 @@
   [ habak -mp 0,0 -hi ?path ])
 
 (defun append-images (&rest paths)
-  (let ((pathname (sl:mktemp)))
+  (let ((pathname (first (sl:lines-to-list [mktemp]))))
     (or-raise [convert ?(format nil "~{'~A'~^ ~}" paths) +append ?pathname ])
     pathname))
 
